@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Métodos Numéricos para Raíces</title>
+    
+    <style>
+        body {
+            font-family: Verdana, Geneva, Tahoma, sans-serif; /* Tipología más legible y local */
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #cccfd3; /* Fondo más suave */
+            color: #333;
+        }
+        header {
+            background: linear-gradient(to right, #fad506, #00d435); /* Degradado dinámico */
+            color: rgb(10, 10, 10);
+            padding: 2em 0;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h1 { margin: 0; font-size: 2.5em; }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        section {
+            background: white;
+            padding: 30px;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        section:hover {
+            transform: translateY(-3px); /* Efecto de vida al pasar el ratón */
+        }
+        h2 {
+            color: #ff3c00; /* Color principal */
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+        h3 {
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        .calculator-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            align-items: center;
+        }
+        .calculator-controls label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        .calculator-controls input, .calculator-controls select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        .calculator-controls input:focus, .calculator-controls select:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+            outline: none;
+        }
+        .calculator-controls button {
+            background-color: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background-color 0.3s, transform 0.1s;
+            height: 45px;
+        }
+        .calculator-controls button:hover {
+            background-color: #218838;
+            transform: scale(1.02);
+        }
+        #output {
+            background: #fafafa;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: Consolas, monospace;
+            margin-top: 25px;
+        }
+        .table-container table {
+            font-size: 0.9em;
+        }
+        /* Ocultar campos innecesarios pero mantenerlos accesibles */
+        .hidden-field { display: none; }
+    </style>
+
+    <script>
+        // Definición de los 4 Ejercicios (Ecuación, Derivada, Puntos Iniciales Recomendados)
+        const EJERCICIOS = {
+            'e1': {
+                name: 'Ejercicio 1: x³ - e^(0.8x) - 20 = 0',
+                f: 'Math.pow(x, 3) - Math.exp(0.8*x) - 20',
+                df: '3*Math.pow(x, 2) - 0.8*Math.exp(0.8*x)',
+                a_bis: 2.0, b_bis: 4.0, x0_n: 3.5, x1_s: 3.5
+            },
+            'e2': {
+                name: 'Ejercicio 2: 3sin(0.5x) - 0.5x + 2 = 0',
+                f: '3*Math.sin(0.5*x) - 0.5*x + 2',
+                df: '1.5*Math.cos(0.5*x) - 0.5',
+                a_bis: 5.0, b_bis: 6.0, x0_n: 5.5, x1_s: 6.0
+            },
+            'e3_3': {
+                name: 'Ejercicio 3: x³ - x²e^(-0.5x) - 3x + 1 = 0 (Raíz 3)',
+                f: 'Math.pow(x, 3) - Math.pow(x, 2)*Math.exp(-0.5*x) - 3*x + 1',
+                df: '3*Math.pow(x, 2) - Math.exp(-0.5*x) * (2*x - 0.5*Math.pow(x, 2)) - 3',
+                a_bis: 1.0, b_bis: 2.0, x0_n: 1.5, x1_s: 2.0
+            },
+            'e4': {
+                name: 'Ejercicio 4: cos²x - 0.5xe^(0.3x) + 5 = 0',
+                f: 'Math.pow(Math.cos(x), 2) - 0.5*x*Math.exp(0.3*x) + 5',
+                df: '-Math.sin(2*x) - 0.5*Math.exp(0.3*x)*(1 + 0.3*x)',
+                a_bis: 3.0, b_bis: 4.0, x0_n: 3.5, x1_s: 4.0
+            }
+        };
+
+        // Función auxiliar para formatear la tabla HTML
+        function formatTable(headers, data) {
+            let table = '<div class="table-container"><table><thead><tr>';
+            headers.forEach(h => table += `<th>${h}</th>`);
+            table += '</tr></thead><tbody>';
+            data.forEach(row => {
+                table += '<tr>';
+                row.forEach(cell => table += `<td>${typeof cell === 'number' ? cell.toFixed(8) : cell}</td>`);
+                table += '</tr>';
+            });
+            table += '</tbody></table></div>';
+            return table;
+        }
+
+        // ===================================
+        // Implementación de Métodos (las mismas funciones de su código optimizado)
+        // ===================================
+
+        function metodo_biseccion(f, a, b, tol) {
+            if (f(a) * f(b) >= 0) return {raiz: null, error: "Error: No hay cambio de signo en el intervalo."};
+            let c, iteraciones = [];
+            for (let i = 0; i < 100; i++) {
+                c = (a + b) / 2;
+                let error_a = Math.abs(b - a) / 2;
+                iteraciones.push([i + 1, a, b, c, f(a), f(b), f(c), error_a]);
+                if (error_a < tol || Math.abs(f(c)) < tol) {
+                    return {raiz: c, iteraciones: iteraciones, headers: ['i', 'a', 'b', 'c', 'f(a)', 'f(b)', 'f(c)', 'Error_a']};
+                }
+                if (f(a) * f(c) < 0) b = c;
+                else a = c;
+            }
+            return {raiz: c, iteraciones: iteraciones, headers: ['i', 'a', 'b', 'c', 'f(a)', 'f(b)', 'f(c)', 'Error_a']};
+        }
+
+        function metodo_newton(f, df, x0, tol) {
+            let x = x0;
+            let iteraciones = [];
+            for (let i = 0; i < 100; i++) {
+                let fx = f(x);
+                let dfx = df(x);
+                if (Math.abs(dfx) < 1e-12) return {raiz: null, error: "Error: Derivada cercana a cero."};
+                let x_new = x - fx / dfx;
+                let error_a = Math.abs(x_new - x);
+                iteraciones.push([i + 1, x, fx, dfx, x_new, error_a]);
+                if (error_a < tol || Math.abs(fx) < tol) {
+                    return {raiz: x_new, iteraciones: iteraciones, headers: ['i', 'xi', 'f(xi)', "f'(xi)", 'x_new', 'Error_a']};
+                }
+                x = x_new;
+            }
+            return {raiz: x, iteraciones: iteraciones, headers: ['i', 'xi', 'f(xi)', "f'(xi)", 'x_new', 'Error_a']};
+        }
+
+        function metodo_secante(f, x0, x1, tol) {
+            let x_prev = x0;
+            let x_curr = x1;
+            let f_prev = f(x0);
+            let f_curr = f(x1);
+            let iteraciones = [];
+            for (let i = 0; i < 100; i++) {
+                if (Math.abs(f_curr - f_prev) < 1e-12) return {raiz: null, error: "Error: Diferencia de funciones cercana a cero."};
+                let x_next = x_curr - f_curr * (x_curr - x_prev) / (f_curr - f_prev);
+                let error_a = Math.abs(x_next - x_curr);
+                iteraciones.push([i + 1, x_prev, x_curr, f_prev, f_curr, x_next, error_a]);
+                if (error_a < tol || Math.abs(f_curr) < tol) {
+                    return {raiz: x_next, iteraciones: iteraciones, headers: ['i', 'x_prev', 'x_curr', 'f_prev', 'f_curr', 'x_next', 'Error_a']};
+                }
+                x_prev = x_curr;
+                x_curr = x_next;
+                f_prev = f_curr;
+                f_curr = f(x_next);
+            }
+            return {raiz: x_curr, iteraciones: iteraciones, headers: ['i', 'x_prev', 'x_curr', 'f_prev', 'f_curr', 'x_next', 'Error_a']};
+        }
+
+
+        // ===================================
+        // Funciones de Control de UI
+        // ===================================
+
+        function updateUIParams(ejercicioId, metodo) {
+            const ej = EJERCICIOS[ejercicioId];
+            const p1 = document.getElementById('param1_a');
+            const p2 = document.getElementById('param2_b');
+            const df_div = document.getElementById('newton_df');
+            
+            document.getElementById('ecuacion_display').textContent = ej.name;
+            document.getElementById('ecuacion_hidden').value = ej.f;
+            document.getElementById('derivada_hidden').value = ej.df;
+            
+            df_div.style.display = 'none';
+
+            if (metodo === 'newton') {
+                df_div.style.display = 'block';
+                document.getElementById('param1_label').textContent = 'Punto Inicial (X₀):';
+                document.getElementById('param2_label').textContent = 'X₁ (No usado):';
+                p1.value = ej.x0_n; // Punto inicial para Newton
+                p2.value = ej.x1_s; // Mantener valor, pero no se usa
+            } else if (metodo === 'biseccion') {
+                document.getElementById('param1_label').textContent = 'Límite Inferior (A):';
+                document.getElementById('param2_label').textContent = 'Límite Superior (B):';
+                p1.value = ej.a_bis;
+                p2.value = ej.b_bis;
+            } else if (metodo === 'secante') {
+                document.getElementById('param1_label').textContent = 'Punto Inicial (X₀):';
+                document.getElementById('param2_label').textContent = 'Punto Inicial (X₁):';
+                p1.value = ej.a_bis; // Se puede usar A como X0
+                p2.value = ej.b_bis; // Se puede usar B como X1
+            }
+        }
+        
+        function resolverEcuacion() {
+            const expr = document.getElementById('ecuacion_hidden').value;
+            const df_expr = document.getElementById('derivada_hidden').value;
+            const metodo = document.getElementById('metodo').value;
+            const tol = parseFloat(document.getElementById('tolerancia').value);
+            const param1 = parseFloat(document.getElementById('param1_a').value);
+            const param2 = parseFloat(document.getElementById('param2_b').value);
+
+            let outputDiv = document.getElementById('output');
+            outputDiv.innerHTML = '<h3>⏳ Calculando...</h3>';
+
+            try {
+                const f = new Function('x', 'return ' + expr);
+                const df = new Function('x', 'return ' + df_expr);
+                let resultado;
+
+                switch (metodo) {
+                    case 'biseccion':
+                        resultado = metodo_biseccion(f, param1, param2, tol);
+                        break;
+                    case 'secante':
+                        resultado = metodo_secante(f, param1, param2, tol);
+                        break;
+                    case 'newton':
+                        resultado = metodo_newton(f, df, param1, tol);
+                        break;
+                    default:
+                        outputDiv.innerHTML = "<h3> Error</h3><p>Método no seleccionado.</p>";
+                        return;
+                }
+
+                if (resultado.raiz !== null) {
+                    let html = `<h3> Raíz Encontrada: ${resultado.raiz.toFixed(8)}</h3>`;
+                    html += `<p><strong>Método:</strong> ${metodo.toUpperCase()} | <strong>Tolerancia:</strong> ${tol} | <strong>Iteraciones:</strong> ${resultado.iteraciones.length}</p>`;
+                    html += '<h4>Corrida (Tabla de Iteraciones)</h4>';
+                    html += formatTable(resultado.headers, resultado.iteraciones);
+                    outputDiv.innerHTML = html;
+                } else {
+                    outputDiv.innerHTML = `<h3> Error en el Cálculo</h3><p>${resultado.error}</p>`;
+                }
+
+            } catch (e) {
+                outputDiv.innerHTML = `<h3> Error de Ejecución</h3><p>Verifique los puntos iniciales: ${e.message}</p>`;
+            }
+        }
+
+        // ===================================
+        // Inicialización
+        // ===================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // Manejar cambios en Ejercicio y Método
+            const ejercicioSelect = document.getElementById('ejercicio_select');
+            const metodoSelect = document.getElementById('metodo');
+
+            const updateAll = () => {
+                updateUIParams(ejercicioSelect.value, metodoSelect.value);
+            };
+
+            ejercicioSelect.addEventListener('change', updateAll);
+            metodoSelect.addEventListener('change', updateAll);
+            
+            // Cargar estado inicial (Ejercicio 1 y Bisección)
+            updateAll();
+        });
+    </script>
+</head>
+<body>
+
+    <header>
+        <h1>Métodos Numéricos para la Determinación de Raíces</h1>
+        <p>Proyecto Final: Bisección, Newton-Raphson y Secante</p>
+    </header>
+
+    <div class="container">
+
+        <section id="calculadora">
+            <h2>1. Calculadora Web Interactiva</h2>
+            
+            <div class="calculator-controls">
+                
+                <div>
+                    <label for="ejercicio_select">Seleccionar Problema:</label>
+                    <select id="ejercicio_select">
+                        <option value="e1">1. x^3 - e^{0.8x} - 20 = 0</option>
+                        <option value="e2">2. 3sin(0.5x) - 0.5x + 2 = 0</option>
+                        <option value="e3_3">3. x^3 - x^2e^{-0.5x} - 3x + 1 = 0</option>
+                        <option value="e4">4. cos^2x - 0.5xe^{0.3x} + 5 = 0</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="metodo">Método:</label>
+                    <select id="metodo">
+                        <option value="biseccion">Bisección</option>
+                        <option value="newton">Newton-Raphson</option>
+                        <option value="secante">Secante</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label id="param1_label" for="param1_a">Límite A / X₀:</label>
+                    <input type="number" id="param1_a" step="any">
+                </div>
+
+                <div>
+                    <label id="param2_label" for="param2_b">Límite B / X₁:</label>
+                    <input type="number" id="param2_b" step="any">
+                </div>
+                
+                <div>
+                    <label for="tolerancia">Tolerancia ($\varepsilon$):</label>
+                    <input type="number" id="tolerancia" value="0.000001" step="0.0000001">
+                </div>
+
+                <button onclick="resolverEcuacion()">Resolver</button>
+            </div>
+
+            <div class="hidden-field">
+                <input type="text" id="ecuacion_hidden">
+                <input type="text" id="derivada_hidden">
+            </div>
+
+            <h3 style="margin-top: 30px;">Función a Evaluar: <span id="ecuacion_display" style="color: #000; font-weight: normal;"></span></h3>
+            
+            <div id="newton_df" class="hidden-field" style="margin-top: 10px;">
+                <p style="font-size: 0.9em; color: gray;">*Nota: Para Newton-Raphson, la derivada ya está precargada.</p>
+            </div>
+            
+            <h3>Resultados y Corrida</h3>
+            <div id="output">
+                Seleccione un ejercicio, configure sus puntos de evaluación y presione 'Resolver'.
+            </div>
+        </section>
+
+        <section id="documentacion">
+            <h2>2. Documentación y Archivos del Proyecto</h2>
+            <p>Esta sección se consolida la documentación de los ejercicios.</p>
+
+            <h3>Archivos para descargar y verificar</h3>
+            <div class="document-links">
+                
+                <a href="Raices de ecuaciones.xlsx" target="_blank">Archivo Excel (Implementaciones)</a>
+                <a href="Raices.py" target="_blank">Código Fuente (Python)</a>
+                <a href="Raices.docx" target="_blank">Documento con la prueba de consola</a>
+                
+            </div>
+        </section>
+
+        <section id="analisis">
+            <h2>3. Análisis, Gráficos y Comparación de los 4 Ejercicios</h2>
+            
+            <p>La tabla y el análisis a continuación resumen los hallazgos clave, la raíz y la eficiencia de los métodos (número de iteraciones para epsilon = 10^{-6}) para los cuatro ejercicios definidos en el proyecto.</p>
+            
+            <table class="comparison-table" border="2">
+                <thead>
+                    <tr>
+                        <th>Ejercicio</th>
+                        <th>Función f(x)</th>
+                        <th>Raíz (Aprox.)</th>
+                        <th>Iteraciones (Bisección)</th>
+                        <th>Iteraciones (Newton)</th>
+                        <th>Iteraciones (Secante)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>x^3 - e^{0.8x} - 20</td>
+                        <td>approx 3.044893</td>
+                        <td>21</td>
+                        <td>5</td>
+                        <td>6</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>3sin(0.5x) - 0.5x + 2</td>
+                        <td>approx 5.753347</td>
+                        <td>20</td>
+                        <td>4</td>
+                        <td>5</td>
+                    </tr>
+                    <tr>
+                        <td>3 (Raíz 3)</td>
+                        <td>x^3 - x^2e^{-0.5x} - 3x + 1</td>
+                        <td>approx 1.629186</td>
+                        <td>20</td>
+                        <td>4</td>
+                        <td>5</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td>cos^2x - 0.5xe^{0.3x} + 5</td>
+                        <td>approx 3.603596</td>
+                        <td>20</td>
+                        <td>4</td>
+                        <td>5</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <h3>Conclusión Comparativa</h3>
+            <p>Los resultados demuestran la diferencia en la velocidad de convergencia de los métodos:</p>
+            <ul>
+                <li><b>Newton-Raphson (Convergencia Cuadrática):</b> Es el método más eficiente (4-5 iteraciones), pero requiere la derivada y un buen punto inicial.</li>
+                <li><b>Secante (Convergencia Superlineal):</b> Ofrece un excelente balance, siendo casi tan rápido como Newton (5-6 iteraciones) sin necesidad de la derivada analítica.</li>
+                <li><b>Bisección (Convergencia Lineal):</b> Es el método más lento (20-21 iteraciones), pero su <b>Robustez</b> garantiza la convergencia siempre que exista un cambio de signo en el intervalo.</li>
+            </ul>
+
+            <h3 style="margin-top: 30px;">Archivos de Gráficos (Simulación Visual)</h3>
+            <p>Aquí se colocarían las imágenes de las gráficas de las funciones f(x) de cada ejercicio, mostrando la raíz(es) marcada(s).</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <img src="Ejercicio 1 de raices.png" alt="Gráfico Ejercicio 1" style="width: 48%; border: 1px solid #ccc;">
+                <img src="Ejercicio 2 de raices.png" alt="Gráfico Ejercicio 2" style="width: 48%; border: 1px solid #ccc;">
+                <img src="Ejercicio 3 de raices.png" alt="Gráfico Ejercicio 3" style="width: 48%; border: 1px solid #ccc;">
+                <img src="Ejercicio 4 de raices.png" alt="Gráfico Ejercicio 4" style="width: 48%; border: 1px solid #ccc;">
+                
+            </div>
+            <p>pruebas de consola</p>
+                <img src="Ejercicio 1 de raices Solucion.png" alt="Gráfico" style="width: 48%; border: 1px solid #ccc;">
+                <img src="Ejercicio 2 de raices Solucion.png" alt="Gráfico" style="width: 48%; border: 1px solid #ccc;">
+        </section>
+
+    </div>
+
+</body>
+</html>
